@@ -19,8 +19,10 @@ suppressPackageStartupMessages({
     library(cowplot)
     library(eulerr)
     library(tidyr)
+    library(writexl)
 })
 
+## Supplementary Table 1
 fp_data_dir = "../data/flavopiridol/de_analysis"
 
 degs_compared = readRDS(file.path(fp_data_dir, "degs_sf_LRT.rds"))
@@ -73,10 +75,11 @@ dim(degs_hash)
 degs_fp = rbind(degs_sf, degs_hash)
 dim(degs_fp)
 
-write.table(degs_fp, file = "../supp_tables/tableS1_fp_degs.txt", col.names = T, row.names = F, quote = F)
+write.table(degs_fp, file = "../supp_tables/supplementary_table_1_fp_degs.txt", col.names = T, row.names = F, quote = F)
+write_xlsx(degs_fp, "../supp_tables/supplementary_table_1_fp_degs.xlsx")
 
 
-
+## Supplementary Table 2
 hdaci_time_data_dir = "../data/hdaci_timecourse/de_analysis"
 
 qvalue = 1e-2
@@ -109,14 +112,14 @@ degs_hash$normalization = "Hash ladder"
 degs_hdaci = rbind(degs_sf, degs_hash)
 dim(degs_hdaci)
 
-write.table(degs_hdaci, file = "../supp_tables/tableS2_hdaci_timecourse_degs.txt", col.names = T, row.names = F, quote = F)
+write.table(degs_hdaci, file = "../supp_tables/supplementary_table_2_hdaci_timecourse_degs.txt", col.names = T, row.names = F, quote = F)
+write_xlsx(degs_hdaci, "../supp_tables/supplementary_table_2_hdaci_timecourse_degs.xlsx")
 
 
-
+## Supplementary Table 3
 hdaci_data_dir = "../data/hdaci_timecourse/heatmaps"
 go_list_hash = readRDS(file.path(hdaci_data_dir, "gsa_list_go_hash_num_cells_100_qvalue-1e-10_4.rds"))
 hallmarks_list_hash = readRDS(file.path(hdaci_data_dir,"gsa_list_hallmarks_hash_num_cells_100_qvalue-1e-10_4.rds"))
-
 
 num_cells = 100
 qvalue = "1e-10"
@@ -188,10 +191,11 @@ combine_table = function(gsa_list_1, gsa_list_2, n = 4) {
 
 out_df = combine_table(go_list_hash, hallmarks_list_hash, 4)
 
-write.table(out_df, file = "../supp_tables/tableS3_hdaci_timecourse_gsea.txt", col.names = T, row.names = F, quote = F)
+write.table(out_df, file = "../supp_tables/supplementary_table_3_hdaci_timecourse_gsea.txt", col.names = T, row.names = F, quote = F)
+write_xlsx(out_df, "../supp_tables/supplementary_table_3_hdaci_timecourse_gsea.xlsx")
 
 
-
+## Supplementary Table 4
 dex_data_dir = "../data/hdaci_dex/de_analysis/dex_vehicle"
 
 coeffs_table_dex <- readRDS(file.path(dex_data_dir, "coeff_table_sf.rds"))
@@ -218,13 +222,14 @@ coeffs_table_dex_hash$normalization = "Hash ladder"
 degs_dex_vehicle = rbind(coeffs_table_dex, coeffs_table_dex_hash)
 dim(degs_dex_vehicle)
 
-write.table(degs_dex_vehicle, file = "../supp_tables/tableS4_dex_vehicle_degs.txt", col.names = T, row.names = F, quote = F)
+write.table(degs_dex_vehicle, file = "../supp_tables/supplementary_table_4_dex_vehicle_degs.txt", col.names = T, row.names = F, quote = F)
+write_xlsx(degs_dex_vehicle, "../supp_tables/supplementary_table_4_dex_vehicle_degs.xlsx")
 
 
-
+## Supplementary Table 5
 dex_data_dir = "../data/hdaci_dex"
 dex_hdaci_degs = readRDS(file.path(dex_data_dir, "overall_estimate_df_by_time.rds"))
 
-write.table(dex_hdaci_degs, file = "../supp_tables/tableS5_dex_hdaci_degs.txt", col.names = T, row.names = F, quote = F)
-
+write.table(dex_hdaci_degs, file = "../supp_tables/supplementary_table_5_dex_hdaci_degs.txt", col.names = T, row.names = F, quote = F)
+write_xlsx(dex_hdaci_degs, "../supp_tables/supplementary_table_5_dex_hdaci_degs.xlsx")
 

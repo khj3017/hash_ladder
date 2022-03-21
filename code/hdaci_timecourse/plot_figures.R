@@ -18,6 +18,7 @@ suppressPackageStartupMessages({
     library(stringr)
     library(eulerr)
     library(scales)
+    library(splines)
 })
 
 monocle_theme_opts <- function()
@@ -42,8 +43,18 @@ cds_timecourse_hash = readRDS("cds_timecourse_hash_pseudotime.rds")
 cds_timecourse$Pseudotime = pseudotime(cds_timecourse)
 cds_timecourse_hash$Pseudotime = pseudotime(cds_timecourse_hash)
 
+convert_gene_to_id <- function(cds, genes) {
+    rowData_mat = as.data.frame(rowData(cds))
+    return(rowData_mat %>% filter(gene_short_name %in% genes) %>% pull(id))
+}
 
-## figure 3A
+convert_id_to_gene <- function(cds, ids) {
+    rowData_mat = as.data.frame(rowData(cds))
+    return(rowData_mat %>% filter(id %in% ids) %>% pull(gene_short_name))
+}
+
+# Figure 3
+## figure 3a
 options(repr.plot.width=3, repr.plot.height=3)
 g = list()
 plot_cells(cds_timecourse, cell_size = 1, alpha = 0.5, 
@@ -75,7 +86,7 @@ plot_cells(cds_timecourse_hash, cell_size = 1, alpha = 0.5,
 ggsave("F3_umap_mult_graph.pdf", device = "pdf", width=3, height=3)
 
 
-## figure 3B
+## figure 3b
 options(repr.plot.width=6, repr.plot.height=3)
 
 g = list()
@@ -96,35 +107,11 @@ g[[2]] = ggplot(as.data.frame(colData(cds_timecourse_hash)), aes(x = Pseudotime,
     viridis::scale_color_viridis(option = "C") +
     monocle_theme_opts() + theme(legend.position = "none")
 
-
 gg = do.call("grid.arrange", c(g, ncol=2))
 ggsave(plot = gg, "F3_total_RNA_pseudotime.pdf", width = 6, height = 3)
 
-options(repr.plot.width=4, repr.plot.height=3)
-cars.lo <- loess(log(Total_RNA) ~ Pseudotime, span = 0.75, 
-                 data = as.data.frame(colData(cds_timecourse_hash)))
-x = seq(0, max(cds_timecourse_hash$Pseudotime), length.out = 1000)
-y = predict(cars.lo, data.frame(Pseudotime = x), se = TRUE)
 
-plot(x,y$fit)
-
-## percentage of total RNA at minimum
-exp(y$fit[which(y$fit == min(y$fit))]) / exp(y$fit[1])
-
-cds_plot = cds_timecourse_hash
-cds_plot$pseudotime = pseudotime(cds_plot)
-
-options(repr.plot.width=4, repr.plot.height=3)
-ggplot(as.data.frame(colData(cds_plot)), 
-       aes(x = pseudotime, y = as.factor(Time))) + 
-    geom_density_ridges2(aes(height = ..density.. , fill = Time)) + 
-    geom_vline(xintercept = x[249], colour = "red", linetype = "longdash") +
-    labs(x = "Pseudotime", y = "Time (hrs)") +
-    viridis::scale_fill_viridis(option = "C") +
-    theme_ridges() + theme(legend.position = "none", axis.text.x = element_blank())
-
-
-## figure 3C
+## figure 3c
 plot_heatmap <- function(cds_subset, m, cluster_rows = TRUE, bin_size = 100,  
                 hclust_method = "ward.D2", min_expr = 0.2, ann_colors = "black",
     num_clusters = 5, hmcols = NULL, add_annotation_row = NULL, annotation_row = NA,
@@ -211,19 +198,8 @@ b = plot_heatmap(cds_timecourse_hash[rownames(expectation_hash),], expectation_h
                  num_clusters = 4, min_expr = 0.1, bin_size = 1000)
 
 
-## figure 3D
+## figure 3d
 gsa_list_hash = readRDS("heatmaps/gsa_list_go_hash_num_cells_100_qvalue-1e-10_4.rds")
-
-
-convert_gene_to_id <- function(cds, genes) {
-    rowData_mat = as.data.frame(rowData(cds))
-    return(rowData_mat %>% filter(gene_short_name %in% genes) %>% pull(id))
-}
-
-convert_id_to_gene <- function(cds, ids) {
-    rowData_mat = as.data.frame(rowData(cds))
-    return(rowData_mat %>% filter(id %in% ids) %>% pull(gene_short_name))
-}
 
 go_term_names = names(gsa_list_hash[[1]]$gsc)
 term_names = "KETONE|CHOLESTEROL|STEROL|STEROID|LIPID|ALCOHOL|CELLULAR|MRNA|FATTY|ACETYL-COA|GLYCO|GLUCOSE"
@@ -267,7 +243,7 @@ find_closest_point = function(values, target) {
     return(data.frame(x = x, y = values[x]))
 }
 
-## point at which normalized expression = 0 
+## point at which z normalized expression = 0 
 find_closest_index = function(values, target) {
     diff_values = values - target
     index_min = min(which(abs(diff_values) == min(abs(diff_values))))
@@ -320,7 +296,7 @@ ggplot(df_crisis, aes(x = values)) +
 ggsave("F3_crisis_hist_norm_expr_0.pdf", device = "pdf", width=4, height=2)
 
 
-## figure 3E
+## figure 3e
 cds_plot = cds_timecourse_hash
 cds_plot$pseudotime = pseudotime(cds_plot)
 
@@ -337,7 +313,7 @@ ggplot(as.data.frame(colData(cds_plot)),
 ggsave("F3_crisis.pdf", device = "pdf", width=5, height=3)
 
 
-## figure 3F
+## figure 3f
 metabolic_genes = convert_gene_to_id(cds_plot, 
                                      c("ACSL3", "IDH1", "ACLY", "SLC2A3", "CDKN1A", "MKI67"))
 
@@ -346,7 +322,6 @@ gg = plot_genes_in_pseudotime(cds_plot[metabolic_genes,],
                          color_cells_by="Time",
                          min_expr=0.1, ncol = 2) + 
         labs(x = "", y = "") + 
-        #theme(axis.text = element_blank(), legend.position = "none", strip.text.x = element_blank()) + 
         geom_vline(xintercept = median(crisis_points)/1000 * max(cds_plot$pseudotime), colour = "red", linetype = "longdash")
         
 gg
@@ -354,11 +329,11 @@ ggsave("F3_metabolic.png", gg, device = "png", width=4, height=5)
 
 
 
-
-## figure S5B
-hash_id_df_1 = read.table("../hdaci_qc/hash_id_df.txt_1", 
+# Supplementary Figure 6
+## Supplementary figure 6b
+hash_id_df_1 = read.table("../hdaci_qc/hash_id_df.txt_rep1", 
                           stringsAsFactors = F, header=T)
-hash_id_df_2 = read.table("../hdaci_qc/hash_id_df.txt_2",
+hash_id_df_2 = read.table("../hdaci_qc/hash_id_df.txt_rep2",
                           stringsAsFactors = F, header=T)
 
 hash_id_df = rbind(hash_id_df_1, hash_id_df_2) %>% filter(!is.na(top_oligo))
@@ -391,16 +366,16 @@ gg = do.call("grid.arrange", c(g, ncol=2))
 ggsave(gg, filename = "S_hashID_filter.pdf", width = 7, height = 3)
 
 
-## figure S5C
-hashTable1  = read.table("../hdaci_qc/hashTable_1.txt", header=T)
-hashTable2  = read.table("../hdaci_qc/hashTable_2.txt", header=T)
+## Supplementary figure 6c
+hashTable1  = read.table("../hdaci_qc/hashTable_rep1.txt", header=T)
+hashTable2  = read.table("../hdaci_qc/hashTable_rep2.txt", header=T)
 
 hashTable = rbind(hashTable1, hashTable2) %>%
                 filter(Dim == 1) %>%
                 distinct(Cell, .keep_all = T) 
 
-total_ladder1 = readRDS("../hdaci_qc/total_ladder_1.rds")
-total_ladder2 = readRDS("../hdaci_qc/total_ladder_2.rds")
+total_ladder1 = readRDS("../hdaci_qc/total_ladder_rep1.rds")
+total_ladder2 = readRDS("../hdaci_qc/total_ladder_rep2.rds")
 total_ladder = rbind(total_ladder1, total_ladder2) %>%
                 filter(Dim == 1) %>%
                 distinct(Cell, .keep_all = T) 
@@ -421,7 +396,7 @@ gg = do.call("grid.arrange", c(g, ncol=2))
 ggsave(gg, filename = "S_hashLadder_filter.pdf", width = 7, height = 3)
 
 
-## figure S5D
+## Supplementary figure 6d
 metadata = as.data.frame(colData(cds_timecourse))
 melted_metadata = metadata %>% select(Cell, Total_hash, Total_RNA) %>% melt()
 
@@ -432,7 +407,28 @@ ggplot(melted_metadata, aes(x = variable, y = log10(value))) +
 ggsave(filename = "S_hash_RNA_count.pdf", width = 3.5, height = 3)
 
 
-## figure S6A
+
+# Supplementary Figure 7
+## Supplementary figure 7b
+metadata = as.data.frame(colData(cds_timecourse))
+scale_factors = log(cds_timecourse$Total_hash / cds_timecourse$Hash_duplication) * 
+                    cds_timecourse$Slope / -cds_timecourse$Intercept *
+                    cds_timecourse$RNA_duplication
+metadata$Size_Factor = scale_factors / exp(mean(log(scale_factors))) 
+
+options(repr.plot.width=4.25, repr.plot.height=3)
+ggplot(metadata, aes(y = log10(Total_RNA / Size_Factor), x = as.factor(Time))) + 
+  geom_boxplot(aes(fill = as.factor(Time))) + 
+  labs(x = "", y = "log10 Total RNA count", fill = "Time (hrs)") +
+  theme_bw() + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
+                     axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+                     panel.border = element_blank(), axis.line = element_line(colour = "black"))
+
+ggsave("S_hdaci_rna_boxplot.pdf", width = 4.25, height = 3)
+
+
+# Supplementary Figure 8
+## Supplementary figure 8a
 degs_dir = "de_analysis"
 out_dir = "de_analysis"
 
@@ -486,7 +482,7 @@ dev.off()
 gg
 
 
-## figure S6B
+## Supplementary figure 8b
 sci_plex_degs = read.delim("aax6234-Srivatsan-Table-S8.txt", header = T, sep = "\t", stringsAsFactors = F) %>%
                     arrange(gene_short_name)
 
@@ -520,7 +516,7 @@ ggplot(deg_overlap, aes(x = norm, y = n)) +
 ggsave("S_sci-plex-overlap.pdf", width = 4.5, height = 3)
 
 
-## figure S6C
+## Supplementary figure 8c
 model_predictions <- function(model_tbl, new_data, type="response") {
   predict_helper <- function(model, cds){
     tryCatch({
@@ -680,12 +676,12 @@ gg = grid.arrange(arrangeGrob(grobs= g,ncol=2))
 ggsave(plot = gg, "S_timecourse_acetylcoa_genes.png", width = 6, height = 3)
 
 
-## figure S6D
+## Supplementary figure 8d
 slc2a3_id = convert_gene_to_id(cds_timecourse_hash, 
                                      c("SLC2A3"))
 
 options(repr.plot.width=2, repr.plot.height=2)
-gg = plot_genes_in_pseudotime_2(cds_timecourse_hash[slc2a3_id,], 
+gg = plot_genes_in_pseudotime(cds_timecourse_hash[slc2a3_id,], 
                          color_cells_by="Time",
                          min_expr=0.1, ncol = 1) + 
         labs(x = "", y = "") + 
@@ -708,7 +704,8 @@ ggplot(slc2a3_expr, aes(x/1000 * max(pseudotime(cds_timecourse_hash)), y)) +
 ggsave("S_SLC2A3_pseudotime_fit.pdf", device = "pdf", width=2.5, height=2)
 
 
-## figure S7A
+# Supplementary Figure 9
+## Supplementary figure 9a
 cds_timecourse_hash = cluster_cells(cds_timecourse_hash, resolution = 0.01, random_seed = 123)
 
 options(repr.plot.width=3, repr.plot.height=3)
@@ -722,7 +719,7 @@ plot_cells(cds_timecourse_hash, cell_size = 1, alpha = 0.6,
 
 ggsave("S_cell_cycle_cluster_umap.pdf", device = "pdf", width=3, height=3)
 
-## figure S7B
+## Supplementary figure 9b
 cds_timecourse_hash = detect_genes(cds_timecourse_hash, 1)
 cds_timecourse_hash = cds_timecourse_hash[rowData(cds_timecourse_hash)$num_cells_expressed > 50,]
 
@@ -742,7 +739,7 @@ pheatmap::pheatmap(agg_mat, filename = "S_gene_module.pdf", width = 5, height = 
                    scale="column", clustering_method="ward.D2")
 
 
-## figure S7C
+## Supplementary figure 9c
 options(repr.plot.width=4.2, repr.plot.height=3)
 plot_cells(cds_timecourse_hash, cell_size = 1,
            genes = gene_module_df %>% filter(module == 6),
@@ -753,7 +750,7 @@ plot_cells(cds_timecourse_hash, cell_size = 1,
 ggsave("S_module_6_umap.pdf", device = "pdf", width=4.2, height=3)
 
 
-## figure S7D
+## Supplementary figure 9d
 loadGSCSafe <- function (file, type = "auto", addInfo, sep="\t", encoding="latin1") 
 {
   if (missing(addInfo)) {
@@ -908,8 +905,8 @@ loadGSCSafe <- function (file, type = "auto", addInfo, sep="\t", encoding="latin
   return(res)
 }
 
-gmt_dir = "../gmts"
 ## Load Gene Set Collections
+gmt_dir = "../gmts"
 reactomeGSC<-loadGSCSafe(file=file.path(gmt_dir, "Human_Reactome_August_01_2019_symbol.gmt"))
 pantherGSC<-loadGSCSafe(file=file.path(gmt_dir, "Human_Panther_August_01_2019_symbol.gmt"))
 KEGGGSC<-loadGSCSafe(file=file.path(gmt_dir, "Human_KEGG_August_01_2019_symbol.gmt"))
@@ -952,7 +949,7 @@ ggplot(go_df, aes(x = x, y = reorder(rowname, x))) +
 ggsave("S_cluster_GSEA.pdf", device = "pdf", width=6, height=3)
 
 
-## figure S7E
+## Supplementary figure 9e
 options(repr.plot.width=9, repr.plot.height=3)
 plot_cells(cds_timecourse_hash, genes=c("KIF20B", "TUBB4B", "MKI67"), 
            cell_size = 1.2, alpha = 0.8,

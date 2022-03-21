@@ -44,6 +44,7 @@ cds_timecourse = cds_timecourse[, cds_timecourse$Total_RNA >= cutoff]
 cds_timecourse = estimate_size_factors(cds_timecourse)
 cds_timecourse
 
+## hash ladder normalization
 cds_timecourse_hash = cds_timecourse
 
 scale_factors = log(cds_timecourse$Total_hash / cds_timecourse$Hash_duplication) * 
@@ -54,7 +55,8 @@ cds_timecourse_hash$Size_Factor = scale_factors / exp(mean(log(scale_factors)))
 summary(cds_timecourse_hash$Size_Factor)
 metadata = as.data.frame(colData(cds_timecourse_hash))
 
-## Align cells
+
+## Align cells; conventional normalization
 cds_timecourse = preprocess_cds(cds_timecourse, num_dim = 50)
 cds_timecourse = align_cds(cds_timecourse, alignment_k = 20,
                            residual_model_formula_str = "~ log(Total_RNA)",
@@ -72,8 +74,7 @@ cds_timecourse <- learn_graph(cds_timecourse, use_partition = F,
                               learn_graph_control = list(ncenter=360, maxiter = 20, minimal_branch_len = 20))
 plot_cells(cds_timecourse, color_cells_by = "Time", cell_size=1)
 
-filter = cds_timecourse@reducedDims$UMAP[,1] > 1.85 #&
-        #cds_timecourse@reducedDims$UMAP[,2] > 2.5
+filter = cds_timecourse@reducedDims$UMAP[,1] > 1.85 
 root_cells <- rownames(as.data.frame(cds_timecourse@reducedDims$UMAP[filter, ]))
 print(length(root_cells))
 
@@ -104,7 +105,7 @@ ggplot(as.data.frame(colData(cds_plot)),
 saveRDS(cds_timecourse, "cds_timecourse_pseudotime.rds")
 
 
-## Align cells
+## Align cells; hash ladder normalization
 cds_timecourse_hash = preprocess_cds(cds_timecourse_hash, num_dim = 70)
 cds_timecourse_hash = align_cds(cds_timecourse_hash, alignment_k = 20,
                            residual_model_formula_str = "~ log(Total_RNA)",
@@ -113,13 +114,7 @@ cds_timecourse_hash = align_cds(cds_timecourse_hash, alignment_k = 20,
 
 options(repr.plot.width=5, repr.plot.height=4)
 cds_timecourse_hash = reduce_dimension(cds_timecourse_hash, reduction_method = "UMAP", 
-                       umap.n_neighbors = 100, umap.min_dist = 0.001) # 50: 50, 0.01
-plot_cells(cds_timecourse_hash, color_cells_by = "Time", cell_size = 1.2, group_label_size = 4) + 
-                ggtitle("Hash ladder normalization")
-
-options(repr.plot.width=5, repr.plot.height=4)
-cds_timecourse_hash = reduce_dimension(cds_timecourse_hash, reduction_method = "UMAP", 
-                       umap.n_neighbors = 200, umap.min_dist = 0.01) # 50: 200, 0.01
+                       umap.n_neighbors = 100, umap.min_dist = 0.01)
 plot_cells(cds_timecourse_hash, color_cells_by = "Time", cell_size = 1.2, group_label_size = 4) + 
                 ggtitle("Hash ladder normalization")
 
@@ -133,8 +128,7 @@ cds_timecourse_hash <- learn_graph(cds_timecourse_hash, use_partition = F, close
 plot_cells(cds_timecourse_hash, color_cells_by = "Time", cell_size=1, alpha = 0.3)
 
 ## get root cell names
-filter = cds_timecourse_hash@reducedDims$UMAP[,1] > 3 #& # -2.25, -1
-            #cds_timecourse_hash@reducedDims$UMAP[,2] < -1
+filter = cds_timecourse_hash@reducedDims$UMAP[,1] > 3
 root_cells <- rownames(as.data.frame(cds_timecourse_hash@reducedDims$UMAP[filter, ]))
 print(length(root_cells))
 
@@ -170,14 +164,13 @@ saveRDS(cds_timecourse_hash, "cds_timecourse_hash_pseudotime.rds")
 ## DE analysis
 de_analysis = function(cds_file, cds_hash_file, min_expr_cutoff = 1, 
                            output_folder = ".", full_model_formula = "~1", num_cells = 50,
-                           resid_model_formula = "~1", pattern = "", ncores = 1) {
+                           resid_model_formula = "~1", ncores = 1) {
     
     cds = readRDS(cds_file)
     cds_hash = readRDS(cds_hash_file)
     
     cds$Pseudotime = pseudotime(cds)
     cds_hash$Pseudotime = pseudotime(cds_hash)
-    
     
     cds <- detect_genes(cds, min_expr = min_expr_cutoff)
     expressed_genes <- row.names(subset(cds, num_cells_expressed >= num_cells))
@@ -252,4 +245,4 @@ de_analysis = function(cds_file, cds_hash_file, min_expr_cutoff = 1,
 de_analysis(cds_file="cds_timecourse_pseudotime.rds", cds_hash_file="cds_timecourse_hash_pseudotime.rds", 
     min_expr_cutoff = 1, num_cells = 50, output_folder = 'de_analysis', 
     full_model_formula = "~ splines::ns(Pseudotime, df=3) + Plate + RNA_duplication", 
-    resid_model_formula = "~1", pattern = "", ncores = 10)
+    resid_model_formula = "~1", ncores = 10)

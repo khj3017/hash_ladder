@@ -44,8 +44,10 @@ monocle_theme_opts <- function()
     theme(legend.key=element_blank())
 }
 
-## Load data
 setwd("../../data/hdaci_dex/")
+
+## Load data
+## DE analysis of HDACi treated cells
 output_dir = "de_analysis/dex_time" 
 sf_file_names = c(file.path(output_dir, "coeff_table_sf_4hr_dex.rds"),
                   file.path(output_dir, "coeff_table_sf_24hr_dex.rds"))
@@ -95,50 +97,19 @@ coeffs_table_dex_hash_10 = coeffs_table_dex_hash %>%
 dim(coeffs_table_dex_hash_10)
 
 
-## make annotations of DEX genes
-annotate_helper_1 = function(sub_table) {
-    single_annotation_names = c("HDACi")
-    grep_types = c("DexTRUE")
-    
-    if (nrow(sub_table) == 1) {
-        out_df = sub_table %>%
-                    mutate(annotation = single_annotation_names[which(sapply(grep_types, function(x) grepl(x, term)))])
-    } else {
-        out_df = sub_table %>%
-                    mutate(annotation = single_annotation_names[apply(sapply(grep_types, 
-                                                                         function(x) grepl(x, term)), 1, 
-                                                                         function(x) which(x))])
-    }
-                                                                             
-    return(out_df)
-}
-
-
-convert_to_df = function(coeffs_table, time, normalization, unique = F) {
-    
-    grep_types = c("DexTRUE")
-    types = c("Dex")
-    
+## Add annotation (whether a gene was responsive to DEX)
+clean_df = function(coeffs_table, time, normalization) {
     coeffs_table = coeffs_table %>%
                         select(id, gene_short_name, num_cells_expressed, term, estimate, q_value) %>%
-                        mutate(time = time, normalization = normalization)  
-                                   
-    genes = unique(coeffs_table$gene_short_name)
-                                                         
-    annotation = plyr::rbind.fill(lapply(genes, function(gene) {
-        sub_table = coeffs_table %>%
-                filter(gene_short_name %in% gene)
-        out_df = annotate_helper_1(sub_table)
-
-        return(out_df)           
-    }))
+                        mutate(time = time, 
+                               normalization = normalization,
+                               annotation = "HDACi")  
 }
 
-unique = F
-df_sf_1 = convert_to_df(coeffs_table_dex_1, time = 4, normalization = "Conventional", unique = unique)
-df_sf_10 = convert_to_df(coeffs_table_dex_10, time = 24, normalization = "Conventional", unique = unique)
-df_hash_1 = convert_to_df(coeffs_table_dex_hash_1, time = 4, normalization = "Hash", unique = unique)
-df_hash_10 = convert_to_df(coeffs_table_dex_hash_10, time = 24, normalization = "Hash", unique = unique)
+df_sf_1 = clean_df(coeffs_table_dex_1, time = 4, normalization = "Conventional")
+df_sf_10 = clean_df(coeffs_table_dex_10, time = 24, normalization = "Conventional")
+df_hash_1 = clean_df(coeffs_table_dex_hash_1, time = 4, normalization = "Hash")
+df_hash_10 = clean_df(coeffs_table_dex_hash_10, time = 24, normalization = "Hash")
 
 df = rbind(df_sf_1, df_sf_10, df_hash_1, df_hash_10)
 
@@ -150,6 +121,7 @@ final_df = term_estimates %>%
     tidyr::spread(term, estimate, fill = 0) %>%
     dplyr::rename(hdaci_dex_estimate = DexTRUE)
 
+## DE analysis of non-HDACi treated cells
 coeffs_table_dex <- readRDS("de_analysis/dex_vehicle/coeff_table_sf.rds")
 degs_compared = readRDS("de_analysis/dex_vehicle/degs_sf_LRT.rds")
 
@@ -168,6 +140,8 @@ coeffs_table_dex_hash = coeffs_table_dex_hash %>%
                                 filter(grepl("Dex", term) & q_value < qvalue & num_cells_expressed > num_cells) 
 dim(coeffs_table_dex_hash)
 
+
+## Add DEX effect size estimates for genes that respond to DEX after HDACi
 out_df = NULL
 for (normal in c("Conventional", "Hash")) {
     if (normal == "Conventional") {
@@ -188,6 +162,7 @@ for (normal in c("Conventional", "Hash")) {
 
 final_df = out_df
 
+## Add genes that are normally DEX responsive but do not respond to DEX after HDACi
 for (normal in c("Conventional", "Hash")) {
     if (normal == "Conventional") {
         coeffs_table = coeffs_table_dex
@@ -212,8 +187,49 @@ for (normal in c("Conventional", "Hash")) {
 
 final_df = final_df %>% select(id:hdaci_dex_estimate, dex_estimate, q_value)
 
-head(final_df)
+## DE analysis of HDACi only (no DEX treatment)
+coeffs_table_hdaci <- readRDS("de_analysis/hdaci_only/coeff_table_sf_hdaci_comp_time_only.rds")
+degs_compared = readRDS("de_analysis/hdaci_only/degs_sf_LRT_hdaci_comp_time_only.rds")
 
+qvalue = 5e-2
+num_cells = 20
+
+coeffs_table_hdaci = coeffs_table_hdaci %>% 
+                    filter(id %in% degs_compared$id) %>%
+                    filter(grepl("Cond", term) & q_value < qvalue & num_cells_expressed > num_cells)
+dim(coeffs_table_hdaci)
+
+coeffs_table_hdaci_hash <- readRDS("de_analysis/hdaci_only/coeff_table_hash_hdaci_comp_time_only.rds")
+degs_compared = readRDS("de_analysis/hdaci_only/degs_hash_LRT_hdaci_comp_time_only.rds")
+coeffs_table_hdaci_hash = coeffs_table_hdaci_hash %>% 
+                                filter(id %in% degs_compared$id) %>%
+                                filter(grepl("Cond", term) & q_value < qvalue & num_cells_expressed > num_cells) 
+dim(coeffs_table_hdaci_hash)
+
+## Add HDACi effect sizes for DEX response genes
+out_df = NULL
+for (normal in c("Conventional", "Hash")) {
+    if (normal == "Conventional") {
+        coeffs_table = coeffs_table_hdaci
+    } else {
+        coeffs_table = coeffs_table_hdaci_hash
+    }
+    
+    for (tim in c(4,24)) {
+        term_grep = ifelse(tim == 4, "Acetyl", "Metab")
+        temp_df = final_df %>% filter(normalization == normal & time == tim)
+        temp_df = coeffs_table %>% filter(id %in% temp_df$id & grepl(term_grep, term)) %>%
+                        select(id, estimate) %>%
+                        dplyr::rename(hdaci_estimate = estimate) %>%
+                        left_join(temp_df, ., by = "id")
+        out_df = rbind(out_df, temp_df)
+    }
+    
+}
+
+final_df = out_df
+final_df[is.na(final_df)] = 0
+            
 overall_estimate_df = final_df %>%
         rowwise() %>%
         mutate(respond = if (annotation == "HDACi") {
@@ -226,8 +242,7 @@ overall_estimate_df = final_df %>%
 
 saveRDS(overall_estimate_df, "overall_estimate_df_by_time.rds")
 
-
-## figure 4C
+## figure 4c
 count_estimate_df = overall_estimate_df %>%
         filter(normalization == "Hash") %>%
         as.data.frame() %>%
@@ -240,14 +255,11 @@ count_estimate_df = overall_estimate_df %>%
         add_tally(name = "m") %>%
         mutate(n = n / m)
 
-
-count_estimate_df
-
 offset = 0.02
 options(repr.plot.width=5.5, repr.plot.height=2.5)
 ggplot(count_estimate_df %>%
            transform(respond = factor(respond, levels = c("Yes", "No"))), 
-       aes(x = respond, y = n, fill = as.factor(time))) + #reorder(aa, -n))) + #as.factor(dose))) + 
+       aes(x = respond, y = n, fill = as.factor(time))) +
     geom_bar(stat = "identity", position = "dodge", colour = "white") + 
     labs(x = "", y = "Proportion of \ndex response genes", fill = "Effects of HDAC\ninhibition") + 
     scale_fill_manual(values = c("#ffdd55", "#0571b0")) + 
@@ -259,7 +271,7 @@ ggplot(count_estimate_df %>%
 ggsave("F4_anno_bar_new_respond.pdf", device = "pdf", width=5, height=2.5)
 
 
-## Look at DEX response genes in presence of HDACi
+## Count # of DEX genes that respond in presence of HDACi
 overall_estimate_df = readRDS("overall_estimate_df_by_time.rds")
 count_estimate_df = overall_estimate_df %>%
         filter(normalization == "Hash") %>%
@@ -271,8 +283,8 @@ count_estimate_df = overall_estimate_df %>%
 count_estimate_df
 
 
-## figure 4D
-response_gene = overall_estimate_df %>%
+## figure 4d
+response_genes = overall_estimate_df %>%
     filter(normalization == "Hash") %>%
     filter(respond == "Yes") %>%
     mutate(hdaci_effect = ifelse(time == 4, "Acetylation", "Metabolic"))
@@ -305,8 +317,7 @@ dose_aggregate <- as.data.frame(vapply(factor_list, function(x)
       rowMeans(dose_mat[,colnames(dose_mat)== x,drop=FALSE], na.rm=TRUE),
                              numeric(nrow(dose_mat))))
 
-
-dose_response_df = response_gene
+dose_response_df = response_genes
 
 dose_expr = t(apply(dose_response_df, 1, function(row) {
     expr_row = dose_aggregate[row[1], , drop=F]
@@ -335,7 +346,7 @@ ggplot(response_df, aes(log2(Dex), log2(HDACi_dex))) +
 
 ggsave("F4_response_gene_scatter.pdf", device = "pdf", width=4, height=4)
 
-
+## Attenuation of DEX response
 response_df %>%
     mutate(Dex = log(Dex), HDACi_dex = log(HDACi_dex)) %>%
     filter(Dex > HDACi_dex & sign(Dex) == sign(HDACi_dex) & Dex > 0 | 
@@ -345,9 +356,12 @@ response_df %>%
 response_df %>%
     nrow
 
+## TSC22D3 as an example
 response_df %>%
     mutate(Dex = log2(Dex), HDACi_dex = log2(HDACi_dex)) %>%
     filter(gene_short_name == "TSC22D3")
+
+3.431554/3.927069
 
 
 ## GSEA analysis
@@ -505,8 +519,8 @@ loadGSCSafe <- function (file, type = "auto", addInfo, sep="\t", encoding="latin
   return(res)
 }
 
-gmt_dir = "../gmts"
 ## Load Gene Set Collections
+gmt_dir = "../gmts"
 reactomeGSC<-loadGSCSafe(file=file.path(gmt_dir, "Human_Reactome_August_01_2019_symbol.gmt"))
 pantherGSC<-loadGSCSafe(file=file.path(gmt_dir, "Human_Panther_August_01_2019_symbol.gmt"))
 KEGGGSC<-loadGSCSafe(file=file.path(gmt_dir, "Human_KEGG_August_01_2019_symbol.gmt"))
@@ -536,6 +550,7 @@ gsa_hyper_clusters <- function(universe, dose_df, gsc){
     return(GSA_list)
 }
 
+## Run GSEA
 GSC = HALLMARKS
 
 gsa_list_hash = suppressWarnings({
@@ -554,7 +569,8 @@ show_gsa = function(gsa_list) {
 show_gsa(gsa_list_hash)
 
 
-## figure S10B
+# Supplementary Figure 13
+## Supplementary figure 13b
 go_df = data.frame(x = gsa_list_hash$p.adj) %>% 
                         rownames_to_column() %>% 
                         arrange(x) %>% 
@@ -570,7 +586,7 @@ ggplot(go_df, aes(x = x, y = reorder(rowname, x))) +
 ggsave("S_response_GSEA.pdf", device = "pdf", width=6, height=3)
 
 
-## figure S10A
+## Supplementary figure 13a
 cds_plot = cds[, cds$Align %in% c("A_F", "A_T", "M_F", "M_T")]
 genes_to_plot = convert_gene_to_id(cds_plot, c("SQSTM1", "DUSP1", "TIPARP", "ERRFI1", "SERPINE1", "PTGS2"))
 
@@ -582,7 +598,7 @@ plot_genes_violin(cds_plot[genes_to_plot,],
 ggsave("S_response_gene_violin.pdf", device = "pdf", width=8, height=2)
 
 
-## figure S10C,D
+## Supplementary figure 13c,d
 response_df_comp = response_df %>%
                     mutate(Dex = log2(Dex), HDACi_dex = log2(HDACi_dex)) %>%
                     add_count(gene_short_name) %>% filter(n == 2) %>%

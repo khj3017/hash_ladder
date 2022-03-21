@@ -50,15 +50,18 @@ overall_estimate_df = readRDS("overall_estimate_df_by_time.rds")
 
 no_response_genes = overall_estimate_df %>%
     filter(normalization == "Hash") %>%
-    filter(respond == "No")
+    filter(respond == "No")  %>%
+    mutate(type = ifelse(hdaci_estimate == 0, "Attenuated", 
+                    ifelse(sign(hdaci_estimate) == sign(dex_estimate), "Saturated", "Dominated"))) %>%
+    transform(type = factor(type, levels = c("Attenuated", "Saturated", "Dominated")))
 
-acetyl_genes = no_response_gene %>%
+acetyl_genes = no_response_genes %>%
     filter(time == 4)
-meta_genes = no_response_gene %>%
+meta_genes = no_response_genes %>%
     filter(time != 4)
 
 
-## figure 4E
+## figure 4e
 n_acetyl_genes = acetyl_genes %>%
                     filter(!id %in% meta_genes$id) %>%
                     nrow()
@@ -88,6 +91,27 @@ plot(g,
      legend = list(labels = c("Acetyl", "Meta"), fontsize = 16))
 dev.off()
 
+
+## Supplementary figure 15b 
+options(repr.plot.width=4.5, repr.plot.height=2.5)
+no_response_genes %>%
+    add_count(time, name = "m") %>% 
+    count(time, type, m) %>%
+    mutate(sample_size = n) %>%
+    mutate(n = n / m) %>%
+    ggplot(., aes(x = type, y = n, fill = as.factor(time))) +
+        geom_bar(stat = "identity", position = "dodge", colour = "white") + 
+        geom_text(aes(label = sample_size, y = n + 0.001),
+            position = position_dodge(0.9),
+            size = 3,
+            vjust = 0) + 
+        labs(x = "", y = "Proportion of \ndex response genes", fill = "Effects of HDAC\ninhibition") + 
+        scale_fill_manual(values = c("#ffdd55", "#0571b0")) + 
+        #facet_wrap(~ dose, nrow = 1) + 
+        ylim(c(0, 0.6)) + 
+        monocle_theme_opts()
+
+ggsave("S_anno_bar_unresponsive_dose_comb.pdf", device = "pdf", width=4.5, height=2.5)
 
 ## GSEA analysis
 loadGSCSafe <- function (file, type = "auto", addInfo, sep="\t", encoding="latin1") 
@@ -244,8 +268,8 @@ loadGSCSafe <- function (file, type = "auto", addInfo, sep="\t", encoding="latin
   return(res)
 }
 
-gmt_dir = "../gmts"
 ## Load Gene Set Collections
+gmt_dir = "../gmts"
 reactomeGSC<-loadGSCSafe(file=file.path(gmt_dir, "Human_Reactome_August_01_2019_symbol.gmt"))
 pantherGSC<-loadGSCSafe(file=file.path(gmt_dir, "Human_Panther_August_01_2019_symbol.gmt"))
 KEGGGSC<-loadGSCSafe(file=file.path(gmt_dir, "Human_KEGG_August_01_2019_symbol.gmt"))
@@ -297,8 +321,8 @@ show_gsa = function(gsa_hash) {
 
 show_gsa(gsa_hash)
 
-
-## figure S11A
+# Supplementary Figure 14
+## Supplementary figure 14a
 go_df = data.frame(x = gsa_hash$p.adj) %>% 
                     rownames_to_column() %>% 
                     arrange(x) %>% 
@@ -312,16 +336,16 @@ ggplot(go_df, aes(x = x, y = reorder(rowname, x))) +
 
 ggsave("S_no_response_GSEA.pdf", device = "pdf", width=6, height=3)
 
-no_response_gene %>%
+no_response_genes %>%
     filter(time != 4) %>%
     filter(gene_short_name %in% sort(GSC$gsc[['HALLMARK_REACTIVE_OXIGEN_SPECIES_PATHWAY']]))
 
-no_response_gene %>%
+no_response_genes %>%
     filter(time != 4) %>%
     filter(gene_short_name %in% sort(GSC$gsc[['HALLMARK_XENOBIOTIC_METABOLISM']]))
 
 
-## figure S11B
+## Supplementary figure 14b
 cds_plot = cds_hash
 genes_to_plot = convert_gene_to_id(cds_plot, c("ABCC1", "GCLC", "GCLM", "MGST1"))
 
@@ -333,6 +357,7 @@ plot_genes_violin(cds_plot[genes_to_plot,], normalize = T,
 ggsave("S_no_response_gene_violin.pdf", device = "pdf", width=4, height=4)
 
 
+## 4hrs vs 24hrs
 gsa_hyper_clusters <- function(cds, gene_df, gsc){
     universe = unique(rowData(cds)$gene_short_name)
     GSA_list = list()
@@ -349,7 +374,6 @@ gsa_hyper_clusters <- function(cds, gene_df, gsc){
     return(GSA_list)
 }
 
-# 4 v 24 hrs
 GSC = HALLMARKS
 
 gsa_hash = suppressWarnings({gsa_hyper_clusters(cds_hash, no_response_genes, GSC)})
@@ -378,10 +402,9 @@ no_response_genes %>%
     arrange(gene_short_name)
 
 
-## figure 4F
+## figure 4f
 cds_plot = cds_hash[, cds_hash$Align %in% c("D_F", "D_T", "A_F", "A_T")]
 genes_to_plot = convert_gene_to_id(cds_plot, c("DGKH", "DOCK4", "CEBPB"))
-#genes_to_plot = convert_gene_to_id(cds_plot, c("NFE2L2", "PDE4B", "TGIF1"))
 
 options(repr.plot.width=5, repr.plot.height=2)
 plot_genes_violin(cds_plot[genes_to_plot,], 

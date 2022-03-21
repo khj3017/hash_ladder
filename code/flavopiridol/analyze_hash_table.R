@@ -15,6 +15,7 @@ suppressPackageStartupMessages({
 wd = getwd()
 wd
 
+## Put processed data into the data directory
 setwd("../../data/flavopiridol")
 
 # load hash ID label and ladder tables
@@ -33,6 +34,10 @@ hashTable <- rbind(hashTable_ladder,
                    hashTable_id) %>%
                 arrange(Cell)  %>%
                 left_join(., hashTable_id %>% select(Cell, ID = Hash))
+
+hashTable <- hashTable %>%
+                filter(!Hash %in% unique(hashTable$ID)) %>%
+                      filter(ID %in% c("A7", "B7", "C7", "D7", "E7", "F7"))
 
 head(hashTable)
 
@@ -143,11 +148,10 @@ hashTable <- hashTable %>% left_join(UMIs_hash, by="Cell") %>% na.omit()
 head(hashTable)
 
 # filter out cells and save
-hashTable = hashTable %>% filter(Celltype == "HEK293T")
 write.table(hashTable, file=file.path(wd, "hashTable.txt"), quote = F, col.names = T, row.names = F)
 
 # filter out cells and save
-hashTable = hashTable %>% filter(Total_hash > 100 & Celltype == "HEK293T" & Rsq > 0.7)
+hashTable = hashTable %>% filter(Total_hash > 100 &  Rsq > 0.7)
 dim(hashTable %>% distinct(Cell, .keep_all = T))
 head(hashTable)
 

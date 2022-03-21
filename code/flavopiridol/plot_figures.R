@@ -56,9 +56,10 @@ metadata = as.data.frame(colData(cds_hash))
 metadata %>%
     group_by(Time) %>%
     summarise(a = median(Total_RNA), b = mean(Total_RNA))
+853.8442/1935.8455
 
-
-## figure 2B
+# Figure 2
+## figure 2b
 options(repr.plot.width=4, repr.plot.height=3)
 ggplot(metadata, aes(y = log10(Total_RNA), x = as.factor(Time))) + 
   geom_boxplot(aes(fill = as.factor(Time))) + 
@@ -71,7 +72,7 @@ ggplot(metadata, aes(y = log10(Total_RNA), x = as.factor(Time))) +
 ggsave("F2_fp_total_rna.pdf", device = "pdf", width = 4, height = 3)
 
 
-## figure 2C
+## figure 2c
 df_sf = data.frame(UMAP1 = cds@reducedDims$UMAP[,1],
                    UMAP2 = cds@reducedDims$UMAP[,2], 
                    Time = cds$Time)
@@ -95,7 +96,7 @@ ggplot(df_hash, aes(UMAP1, UMAP2)) +
 ggsave("F2_fp_umap_ladder.pdf", device = "pdf", width = 3, height = 3)
 
 
-## figure 2D
+## figure 2d
 degs_compared = readRDS("de_analysis/degs_sf_LRT.rds")
 degs_sf = readRDS("de_analysis/coeff_table_sf.rds")
 qvalue = 1e-2
@@ -181,7 +182,7 @@ ggplot(base::transform(df,
 ggsave("F2_degs_bar.pdf", device = "pdf", width = 3, height = 3)
 
 
-## figure 2E
+## figure 2e
 convert_gene_to_id <- function(cds, genes) {
     rowData_mat = as.data.frame(rowData(cds))
     return(rowData_mat %>% filter(gene_short_name %in% genes) %>% pull(id))
@@ -192,63 +193,116 @@ convert_id_to_gene <- function(cds, ids) {
     return(rowData_mat %>% filter(id %in% ids) %>% pull(gene_short_name))
 }
 
-fit_spline = function(data_frame, x, y, n, label, method = "natural") {
-    fit = as.data.frame(spline(x, as.vector(unlist(data_frame[y])), n = n, method = method)) %>%
-                mutate(feature_label = label)
-    return(fit)
+### modified plot_percent_cells_positive in monocle3
+plot_percent_cells_positive_dist <- function(cds_subset,
+                                        group_cells_by = NULL,
+                                        min_expr = 0,
+                                        normalize = TRUE,
+                                        bootstrap_samples=100,
+                                        conf_int_alpha = .95){
+
+  marker_exprs <- SingleCellExperiment::counts(cds_subset)
+
+  if (normalize) {
+    marker_exprs <- Matrix::t(Matrix::t(marker_exprs)/size_factors(cds_subset))
+    marker_exprs_melted <- reshape2::melt(round(10000*as.matrix(marker_exprs))/10000)
+  } else {
+    marker_exprs_melted <- reshape2::melt(as.matrix(marker_exprs))
+  }
+
+  colnames(marker_exprs_melted) <- c("f_id", "Cell", "expression")
+
+  marker_exprs_melted <- base::merge(marker_exprs_melted, colData(cds_subset),
+                               by.x="Cell", by.y="row.names")
+  marker_exprs_melted <- base::merge(marker_exprs_melted, rowData(cds_subset),
+                               by.x="f_id", by.y="row.names")
+
+  if (!is.null(marker_exprs_melted$gene_short_name)){
+    marker_exprs_melted$feature_label <- marker_exprs_melted$gene_short_name
+    marker_exprs_melted$feature_label[
+      is.na(marker_exprs_melted$feature_label)] <- marker_exprs_melted$f_id
+  } else {
+    marker_exprs_melted$feature_label <- marker_exprs_melted$f_id
 }
 
 
+  marker_counts_bootstrap = rsample::bootstraps(marker_exprs_melted, times = bootstrap_samples)
+
+  group_mean_bootstrap <- function(split) {
+    rsample::analysis(split) %>%
+      dplyr::group_by(!!as.name("feature_label"), !!as.name(group_cells_by)) %>%
+      dplyr::summarize(target = sum(expression > min_expr),
+                       target_fraction = sum(expression > min_expr)/dplyr::n())
+  }
+  
+    
+  marker_counts <-
+    marker_counts_bootstrap %>%
+    dplyr::mutate(summary_stats = purrr::map(splits, group_mean_bootstrap)) %>%
+    tidyr::unnest(summary_stats)
+    
+  return(marker_counts %>% dplyr::ungroup() %>%
+            dplyr::group_by(!!as.name("feature_label"), !!as.name(group_cells_by)) %>%
+            select(-splits) %>%
+            mutate(target = target * 100,
+                   target_fraction = target_fraction * 100))
+}
+
+## figure 2e
 genes_to_plot = c("LAMC1", "CD151")
 ids_to_plot = convert_gene_to_id(cds, genes_to_plot)
 
-options(repr.plot.width=8, repr.plot.height=4)
+conf_int_alpha = 0.95
+
+hash_plot_data = plot_percent_cells_positive_dist(cds_hash[ids_to_plot,], min_expr = 1,
+                                     group_cells_by="Time")
+
+hash_plot_data_sum = hash_plot_data %>%
+                    dplyr::summarize(target_fraction_mean = mean(target_fraction),
+                                     target_fraction_low = stats::quantile(target_fraction, (1 - conf_int_alpha) / 2),
+                                     target_fraction_high = stats::quantile(target_fraction, 1 - (1 - conf_int_alpha) / 2))
+
+
+conv_plot_data = plot_percent_cells_positive_dist(cds[ids_to_plot,], min_expr = 1,
+                                     group_cells_by="Time")
+
+conv_plot_data_sum = conv_plot_data %>%
+                    dplyr::summarize(target_fraction_mean = mean(target_fraction),
+                                     target_fraction_low = stats::quantile(target_fraction, (1 - conf_int_alpha) / 2),
+                                     target_fraction_high = stats::quantile(target_fraction, 1 - (1 - conf_int_alpha) / 2))
+
+## Plot
 g = list()
-g[[1]] = plot_percent_cells_positive(cds_hash[ids_to_plot,], min_expr = 1,
-                                     group_cells_by="Time", ncol=2) +
-            theme(axis.text.x=element_text(angle=45, hjust=1))
+g[[1]] = ggplot(hash_plot_data_sum, aes(x = as.factor(Time), y = target_fraction_mean)) + 
+            geom_bar(stat="identity", aes(fill = as.factor(Time))) +
+            geom_jitter(data = hash_plot_data, 
+                        aes(x = as.factor(Time), y = target_fraction),
+                        position = position_jitter(0.3), size = 0.2,
+                        color = "grey50") + 
+            geom_linerange(aes(ymin = target_fraction_low, ymax = target_fraction_high)) +
+            facet_wrap(~ feature_label, scales = "free") + 
+            labs(x = "", y = "") + 
+            scale_fill_brewer(palette = "YlGnBu") + 
+            monocle3:::monocle_theme_opts() + theme(legend.position = "none")
 
-g[[2]] = plot_percent_cells_positive(cds[ids_to_plot,], min_expr = 1,
-                                     group_cells_by="Time", ncol=2) +
-                theme(axis.text.x=element_text(angle=45, hjust=1))
-
-
-a = (g[[1]]$data) %>% filter(feature_label == "CD151")
-b = (g[[1]]$data) %>% filter(feature_label != "CD151")
-
-spline_fit_mult = rbind(fit_spline(a, x = 1:6, y = "target_fraction_mean", n = 36, label = "CD151"),
-                        fit_spline(b, x = 1:6, y = "target_fraction_mean", n = 36, label = "LAMC1"))
-
-a = (g[[2]]$data) %>% filter(feature_label == "CD151")
-b = (g[[2]]$data) %>% filter(feature_label != "CD151")
-
-spline_fit_sf = rbind(fit_spline(a, x = 1:6, y = "target_fraction_mean", n = 36, label = "CD151"),
-                      fit_spline(b, x = 1:6, y = "target_fraction_mean", n = 36, label = "LAMC1"))
-
-gg = list()
-
-
-gg[[1]] = ggplot(g[[1]]$data, aes(x = as.factor(Time), y = target_fraction_mean)) + 
-                geom_bar(stat="identity", aes(fill = as.factor(Time))) +
-                geom_linerange(aes(ymin = target_fraction_low, ymax = target_fraction_high)) +
-                facet_wrap(~ feature_label, scales = "free") + 
-                labs(x = "", y = "") + 
-                scale_fill_brewer(palette = "YlGnBu") + 
-                monocle_theme_opts() + theme(legend.position = "none")
-gg[[2]] = ggplot(g[[2]]$data, aes(x = as.factor(Time), y = target_fraction_mean)) + 
-                geom_bar(stat="identity", aes(fill = as.factor(Time))) +
-                geom_linerange(aes(ymin = target_fraction_low, ymax = target_fraction_high)) +
-                facet_wrap(~ feature_label, scales = "free") + 
-                labs(y = "", x = "") +
-                scale_fill_brewer(palette = "YlGnBu") + 
-                monocle_theme_opts() + theme(legend.position = "none")
+g[[2]] = ggplot(conv_plot_data_sum, aes(x = as.factor(Time), y = target_fraction_mean)) + 
+            geom_bar(stat="identity", aes(fill = as.factor(Time))) +
+            geom_jitter(data = conv_plot_data, 
+                        aes(x = as.factor(Time), y = target_fraction),
+                        position = position_jitter(0.3), size = 0.2,
+                        color = "grey50") + 
+            geom_linerange(aes(ymin = target_fraction_low, ymax = target_fraction_high)) +
+            facet_wrap(~ feature_label, scales = "free") + 
+            labs(x = "", y = "") + 
+            scale_fill_brewer(palette = "YlGnBu") + 
+            monocle3:::monocle_theme_opts() + theme(legend.position = "none")
 
 options(repr.plot.width=4, repr.plot.height=3.5)
-cc = do.call("grid.arrange", c(gg, ncol=1))
-ggsave("F2_cells_perc_positive_adhesion.pdf", cc, device = "pdf", width = 4, height = 3.5)
+cc = do.call("grid.arrange", c(g, ncol=1))
+ggsave("F2_cells_perc_positive_adhesion_jitter.pdf", cc, device = "pdf", width = 4, height = 3.5)
 
 
-## figure 2F
+## figure 2f
 degs_common = inner_join(degs_sf %>% select(id, gene_short_name, estimate, normalized_effect, fc, q_value), 
                          degs_hash %>% select(id, gene_short_name, estimate, normalized_effect, fc, q_value), 
                          by = c("id", "gene_short_name"))
@@ -276,8 +330,8 @@ ggsave("F2_fc_comp.pdf", device = "pdf", width = 4, height = 2.5)
 ddf %>% count(Type)
 
 
-
-## figure S3A
+# Supplementary Figure 3
+## Supplementary figure 3a
 options(repr.plot.width=4, repr.plot.height=3)
 ggplot(metadata, aes(y = Size_Factor, x = as.factor(Time))) + 
     geom_boxplot(aes(fill = as.factor(Time))) + 
@@ -288,7 +342,7 @@ ggplot(metadata, aes(y = Size_Factor, x = as.factor(Time))) +
 ggsave("S_fp_hash_size_factor.pdf", device = "pdf", width = 4, height = 3)
 
 
-## figure S3B
+## Supplementary figure 3b
 options(repr.plot.width=4, repr.plot.height=3)
 ggplot(metadata, aes(y = log10(Total_hash), x = as.factor(Time))) + 
     geom_boxplot(aes(fill = as.factor(Time))) + 
@@ -299,8 +353,7 @@ ggplot(metadata, aes(y = log10(Total_hash), x = as.factor(Time))) +
 ggsave("S_fp_total_hash.pdf", device = "pdf", width = 4, height = 3)
 
 
-## figure S3C
-setwd("/net/trapnell/vol1/khj3017/project/190118_HashLadder_sciRNA/results/sciRNA-FP-timecourse-48-hashesV4-pooled-ID")
+## Supplementary figure 3c
 hash_id_df = read.table("hash_id_df.txt", header=T)
 g = list()
 options(repr.plot.width=7, repr.plot.height=3)
@@ -319,7 +372,7 @@ gg = do.call("grid.arrange", c(g, ncol=2))
 ggsave(gg, filename = "S_hashID_filter.pdf", width = 7, height = 3)
 
 
-## figure S3D
+## Supplementary figure 3d
 options(repr.plot.width=3.5, repr.plot.height=3)
 ggplot(hashTable_filtered %>%
            dplyr::count(Cell) %>% dplyr::count(n), 
@@ -353,7 +406,8 @@ gg = do.call("grid.arrange", c(g, ncol=2))
 ggsave(plot = gg, filename = "S_hash_filter.pdf", width = 6, height = 3)
 
 
-## figure S4A
+# Supplementary Figure 4
+## Supplementary figure 4a
 cds_plot = cds
 cds_plot$pseudotime = pseudotime(cds_plot)
 
@@ -382,7 +436,7 @@ gg = do.call("grid.arrange", c(g, ncol=2))
 ggsave(plot = gg, "S_FP_pseudo_ordering.pdf", device = "pdf", width = 5.5, height = 3)
 
 
-## figure S4B
+## Supplementary figure 4b
 n_hash = degs_hash %>%
     filter(!id %in% degs_sf$id) %>%
     dplyr::count(fc > 0)
@@ -420,7 +474,7 @@ ggg = do.call("grid.arrange", c(gg, ncol=2))
 ggsave(plot = ggg, "S_FP_de_overlap.pdf", device = "pdf", width = 6, height = 3)
 
 
-## figure S4C
+## Supplementary figure 4c
 cds = detect_genes(cds, min_expr = 0.1)
 cds = cds[rowData(cds)$num_cells_expressed > 10, ]
 cds_hash = detect_genes(cds_hash, 0.1)
@@ -461,7 +515,7 @@ hash_fc_melt = melt(hash_fc)
 
 
 sf_fc_melt$type = "Conventional"
-hash_fc_melt$type = "hashinomial"
+hash_fc_melt$type = "Hash ladder"
 df = rbind(sf_fc_melt, hash_fc_melt)
 
 options(repr.plot.width=7, repr.plot.height=3)
@@ -476,28 +530,92 @@ ggplot(df, aes(x = variable, y = log2(value), colour = type)) +
 ggsave("S_de_time_fc_all_genes.pdf", width = 7, height = 3)
 
 
-## figure S4D
-genes_to_plot = c("ALCAM", "AMOT", "PPP3CA", "EFNA5", "AKT3", "PARD3")
+## Supplementary figure 4d
+### modified plot_percent_cells_positive function 
+plot_percent_cells_positive_dist <- function(cds_subset,
+                                        group_cells_by = NULL,
+                                        min_expr = 0,
+                                        normalize = TRUE,
+                                        bootstrap_samples=100,
+                                        conf_int_alpha = .95){
+
+  marker_exprs <- SingleCellExperiment::counts(cds_subset)
+
+  if (normalize) {
+    marker_exprs <- Matrix::t(Matrix::t(marker_exprs)/size_factors(cds_subset))
+    marker_exprs_melted <- reshape2::melt(round(10000*as.matrix(marker_exprs))/10000)
+  } else {
+    marker_exprs_melted <- reshape2::melt(as.matrix(marker_exprs))
+  }
+
+  colnames(marker_exprs_melted) <- c("f_id", "Cell", "expression")
+
+  marker_exprs_melted <- base::merge(marker_exprs_melted, colData(cds_subset),
+                               by.x="Cell", by.y="row.names")
+  marker_exprs_melted <- base::merge(marker_exprs_melted, rowData(cds_subset),
+                               by.x="f_id", by.y="row.names")
+
+  if (!is.null(marker_exprs_melted$gene_short_name)){
+    marker_exprs_melted$feature_label <- marker_exprs_melted$gene_short_name
+    marker_exprs_melted$feature_label[
+      is.na(marker_exprs_melted$feature_label)] <- marker_exprs_melted$f_id
+  } else {
+    marker_exprs_melted$feature_label <- marker_exprs_melted$f_id
+}
+
+
+  marker_counts_bootstrap = rsample::bootstraps(marker_exprs_melted, times = bootstrap_samples)
+
+  group_mean_bootstrap <- function(split) {
+    rsample::analysis(split) %>%
+      dplyr::group_by(!!as.name("feature_label"), !!as.name(group_cells_by)) %>%
+      dplyr::summarize(target = sum(expression > min_expr),
+                       target_fraction = sum(expression > min_expr)/dplyr::n())
+  }
+  
+    
+  marker_counts <-
+    marker_counts_bootstrap %>%
+    dplyr::mutate(summary_stats = purrr::map(splits, group_mean_bootstrap)) %>%
+    tidyr::unnest(summary_stats)
+    
+  return(marker_counts %>% dplyr::ungroup() %>%
+            dplyr::group_by(!!as.name("feature_label"), !!as.name(group_cells_by)) %>%
+            select(-splits) %>%
+            mutate(target = target * 100,
+                   target_fraction = target_fraction * 100))
+}
+
+genes_to_plot = c("ALCAM", "PPP3CA", "EFNA5", "AKT3", "PARD3")
 ids_to_plot = convert_gene_to_id(cds, genes_to_plot)
 
-options(repr.plot.width=8, repr.plot.height=4)
-g = plot_percent_cells_positive(cds_hash[ids_to_plot,], min_expr = 1,
-                                     group_cells_by="Time", ncol=3) +
-            theme(axis.text.x=element_text(angle=45, hjust=1))
+conf_int_alpha = 0.95
+
+hash_plot_data = plot_percent_cells_positive_dist(cds_hash[ids_to_plot,], min_expr = 1,
+                                     group_cells_by="Time")
+
+hash_plot_data_sum = hash_plot_data %>%
+                    dplyr::summarize(target_fraction_mean = mean(target_fraction),
+                                     target_fraction_low = stats::quantile(target_fraction, (1 - conf_int_alpha) / 2),
+                                     target_fraction_high = stats::quantile(target_fraction, 1 - (1 - conf_int_alpha) / 2))
 
 options(repr.plot.width=5, repr.plot.height=4)
-ggplot(g$data, aes(x = as.factor(Time), y = target_fraction_mean)) + 
+ggplot(hash_plot_data_sum, aes(x = as.factor(Time), y = target_fraction_mean)) + 
         geom_bar(stat="identity", aes(fill = as.factor(Time))) +
+        geom_jitter(data = hash_plot_data, 
+                    aes(x = as.factor(Time), y = target_fraction),
+                    position = position_jitter(0.3), size = 0.2,
+                    color = "grey50") + 
         geom_linerange(aes(ymin = target_fraction_low, ymax = target_fraction_high)) +
         facet_wrap(~ feature_label, scales = "free") + 
         labs(x = "", y = "") + 
         scale_fill_brewer(palette = "YlGnBu") + 
-        monocle_theme_opts() + theme(legend.position = "none")
+        monocle3:::monocle_theme_opts() + theme(legend.position = "none")
 
-ggsave("S_gene_neurogenesis_motility.pdf", device = "pdf", width = 5, height = 4)
+ggsave("S_gene_neurogenesis_motility_jitter.pdf", device = "pdf", width = 5, height = 4)
 
 
-## figure S4E
+## Supplementary figure 4e
 goi = degs_sf %>% filter(fc < 0) %>% pull(id)
 sf_gene_expr = as.matrix(t(t(counts(cds[goi,])) / cds$Size_Factor))
 colnames(sf_gene_expr) = as.factor(cds$Condition)

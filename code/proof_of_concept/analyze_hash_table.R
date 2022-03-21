@@ -16,6 +16,7 @@ suppressPackageStartupMessages({
 wd = getwd()
 wd
 
+## Put processed data into the data directory
 setwd("../../data/proof_of_concept/")
 
 # load hash table
@@ -26,6 +27,7 @@ hashTable <- read.table("hashTable.out", header=F,
 # filter out cells based on RNA UMI/cell
 samples_to_exclude <- unlist(read.table("samples.to.exclude")) # from UMI counts/cell
 
+### Concentration for E5 and F5 flipped when making the ladder
 hashes <- c("A5", "B5", "C5", "D5", "E5", "F5", "G5", "H5")
 hash_moles <- c(0.2, 0.4, 0.8, 1.6, 6.4, 3.2, 12.8, 25.6)*1000 # femtomoles
 

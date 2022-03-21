@@ -102,16 +102,6 @@ doublets <- read.table("doublets.txt", colClasses = c("character"))
 cds <- cds[,-na.omit(match(cds$Cell, doublets[,1]))]
 cds
 
-doublets <- read.table("doublets.txt", colClasses = c("character"))
-cds3 = cds[, doublets[doublets$V1 %in% cds$Cell,1]]
-
-as.data.frame(colData(cds3)) %>%
-    group_by(Condition) %>%
-    summarise(a = median(Total_RNA), b = mean(Total_hash))
-
-as.data.frame(colData(cds)) %>%
-    group_by(Condition) %>%
-    summarise(a = median(Total_RNA), b = mean(Total_hash))
 
 ## filter out mito.genes and subtract mito gene counts
 mito_genes <- grep(pattern = "^MT-", x = rowData(cds)$gene_short_name, value = TRUE, ignore.case = TRUE)
@@ -182,8 +172,7 @@ cds2 <- learn_graph(cds2, use_partition = F, close_loop = F,
 options(repr.plot.width=4, repr.plot.height=4)
 plot_cells(cds2, color_cells_by = "Condition", cell_size=1, group_label_size = 4)
 
-filter = cds2@reducedDims$UMAP[,1] < -3.7 #|
-        #cds_timecourse_multinomial@reducedDims$UMAP[,2] < -2.3
+filter = cds2@reducedDims$UMAP[,1] < -3.7
 root_cells <- rownames(as.data.frame(cds2@reducedDims$UMAP[filter, ]))
 print(length(root_cells))
 
@@ -209,7 +198,7 @@ ggplot(as.data.frame(colData(cds_plot)),
     labs(x = "Pseudotime", y = "Time (hrs)") +
     theme_ridges() + theme(legend.position = "none", axis.text.x = element_blank())
 
-saveRDS(cds2, "cds_hash_ladder_pseudotime_doublets_removed.rds")
+saveRDS(cds2, "cds_hash_ladder_pseudotime.rds")
 
 
 # conventional normalization
@@ -258,7 +247,7 @@ ggplot(as.data.frame(colData(cds_plot)),
     theme_ridges() + theme(legend.position = "none", axis.text.x = element_blank())
 
 
-saveRDS(cds, "cds_conv_pseudotime_doublets_removed.rds")
+saveRDS(cds, "cds_conv_pseudotime.rds")
 
 
 ## differential expression analysis

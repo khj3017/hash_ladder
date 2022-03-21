@@ -89,11 +89,30 @@ load.cds = function(mat.path, gene.annotation.path, cell.annotation.path,
   return(cds)
 }
 
+combine_cds = function(cds_batch_1, cds_batch_2, min_expr_cutoff = 1, num_cells = 0) {
+    combined_mat = cbind(counts(cds_batch_1), counts(cds_batch_2))
+    combined_colData = rbind(as.data.frame(colData(cds_batch_1)), as.data.frame(colData(cds_batch_2)))
+
+    cds = new_cell_data_set(combined_mat,
+                            cell_metadata = combined_colData,
+                            gene_metadata = rowData(cds_batch_1))
+
+    cds <- detect_genes(cds, min_expr = min_expr_cutoff)
+    expressed_genes <- row.names(subset(cds, num_cells_expressed >= num_cells))
+    print(paste0("# of expressed genes: ", length(expressed_genes)))
+
+    cds <- cds[expressed_genes, ]
+
+
+    return(cds)
+}
+
 setwd("../../data/hdaci_qc/")
 
+# HDACi timecourse experiment
 ## load cds
-cds_batch_1 = load.cds('UMI.count.matrix_1', '../refdata/gene.annotations.hg38.mm10', 
-               'cell.annotations_1', 'hashTable_unique_filtered_1.txt', 
+cds_batch_1 = load.cds('UMI.count.matrix_rep1', '../refdata/gene.annotations.hg38.mm10', 
+               'cell.annotations_rep1', 'hashTable_unique_filtered_rep1.txt', 
                 Experiment = 1, Batch = 1, min_expr_cutoff = 0, num_cells = 0)
 
 cds_batch_1$Hash_Size_Factor = NULL
@@ -102,8 +121,8 @@ dim(as.data.frame(colData(cds_batch_1)))
 head(as.data.frame(colData(cds_batch_1)))
 
 ## load cds
-cds_batch_2 = load.cds('UMI.count.matrix_2', '../refdata/gene.annotations.hg38.mm10', 
-               'cell.annotations_2', 'hashTable_unique_filtered_2.txt', 
+cds_batch_2 = load.cds('UMI.count.matrix_rep2', '../refdata/gene.annotations.hg38.mm10', 
+               'cell.annotations_rep2', 'hashTable_unique_filtered_rep2.txt', 
                 Experiment = 1, Batch = 2, min_expr_cutoff = 0, num_cells = 0)
 
 cds_batch_2$Hash_Size_Factor = NULL
@@ -111,16 +130,28 @@ cds_batch_2$Hash_Size_Factor = NULL
 dim(as.data.frame(colData(cds_batch_2)))
 head(as.data.frame(colData(cds_batch_2)))
 
+saveRDS(cds_batch_1, "cds_dim_1_batch_1.rds")
+saveRDS(cds_batch_2, "cds_dim_1_batch_2.rds")
+
+cds = combine_cds(cds_batch_1, cds_batch_2)
+head(as.data.frame(colData(cds)))
+metadata = as.data.frame(colData(cds))
+
+saveRDS(cds, "cds_dim_1_combined.rds")
+
+
+
+# HDACi/Dex experiment
 ## load cds
-cds_batch_1 = load.cds('UMI.count.matrix_1', '../refdata/gene.annotations.hg38.mm10', 
-               'cell.annotations_1', 'hashTable_unique_filtered_1.txt', 
+cds_batch_1 = load.cds('UMI.count.matrix_rep1', '../refdata/gene.annotations.hg38.mm10', 
+               'cell.annotations_rep1', 'hashTable_unique_filtered_rep1.txt', 
                 Experiment = 2, Batch = 1, min_expr_cutoff = 0, num_cells = 0)
 
 cds_batch_1$Hash_Size_Factor = NULL
 
 ## load cds
-cds_batch_2 = load.cds('UMI.count.matrix_2', '../refdata/gene.annotations.hg38.mm10', 
-               'cell.annotations_2', 'hashTable_unique_filtered_2.txt', 
+cds_batch_2 = load.cds('UMI.count.matrix_rep2', '../refdata/gene.annotations.hg38.mm10', 
+               'cell.annotations_rep2', 'hashTable_unique_filtered_rep2.txt', 
                 Experiment = 2, Batch = 2, min_expr_cutoff = 0, num_cells = 0)
 
 cds_batch_2$Hash_Size_Factor = NULL
@@ -132,29 +163,8 @@ head(as.data.frame(colData(cds_batch_2)))
 saveRDS(cds_batch_1, "cds_dim_2_batch_1.rds")
 saveRDS(cds_batch_2, "cds_dim_2_batch_2.rds")
 
-combine_cds = function(cds_batch_1, cds_batch_2, min_expr_cutoff = 1, num_cells = 0) {
-    combined_mat = cbind(counts(cds_batch_1), counts(cds_batch_2))
-    combined_colData = rbind(as.data.frame(colData(cds_batch_1)), as.data.frame(colData(cds_batch_2)))
-    
-    cds = new_cell_data_set(combined_mat, 
-                            cell_metadata = combined_colData, 
-                            gene_metadata = rowData(cds_batch_1))
-
-    cds <- detect_genes(cds, min_expr = min_expr_cutoff)
-    expressed_genes <- row.names(subset(cds, num_cells_expressed >= num_cells))
-    print(paste0("# of expressed genes: ", length(expressed_genes)))
-
-    cds <- cds[expressed_genes, ]
-      
-    
-    return(cds)
-}
 
 cds = combine_cds(cds_batch_1, cds_batch_2)
-
-cds
-head(as.data.frame(colData(cds)))
-metadata = as.data.frame(colData(cds))
 
 cds
 head(as.data.frame(colData(cds)))

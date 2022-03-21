@@ -18,12 +18,12 @@ wd
 
 setwd("../../data/hdaci_qc/")
 
-hashTable_id <- read.table("hashTable-labels-filtered.out_1", header=T) %>%
+hashTable_id <- read.table("hashTable-labels-filtered.out_rep1", header=T) %>%
                       dplyr::select(SampleName, Cell, top_oligo, Axis, top_hash_umi)
 
 colnames(hashTable_id) = c("Sample", "Cell", "Hash", "Axis", "Count")
 
-hashTable_ladder = read.table("hashTable-ladder.out_1", header=T) 
+hashTable_ladder = read.table("hashTable-ladder.out_rep1", header=T) 
 colnames(hashTable_ladder) = c("Sample", "Cell", "Hash", "Axis", "Count")
 hashTable_ladder = hashTable_ladder %>%
                         filter(Cell %in% unique(hashTable_id$Cell))
@@ -37,7 +37,7 @@ head(hashTable)
 
 
 ## define and load features
-samples_to_exclude <- as.vector(unlist(read.table("samples.to.exclude_1"))) # from UMI counts/cell
+samples_to_exclude <- as.vector(unlist(read.table("samples.to.exclude_rep1"))) # from UMI counts/cell
 
 hashes_ref <- read.table("hash-ladder-exp.txt", header=F)
 colnames(hashes_ref) <- c("Hash", "Mol")
@@ -51,7 +51,7 @@ rm(samples_to_exclude)
 dim(hashTable)
 
 ## convert ID to condition
-IDinfo <- read.table("hashIDSampleSheet.txt", header=T)
+IDinfo <- read.table("hashID-annotation.txt", header=T)
 indices <- sapply(hashTable$ID, function(x) {
   which(x == IDinfo$ID)
 })
@@ -87,7 +87,7 @@ hashTable = hashTable %>%
                     left_join(., total_ladder, by = "Cell") %>%
                     dplyr::rename(total_ladder = x)
 
-saveRDS(hashTable, "total_ladder_1.rds")
+saveRDS(hashTable, "total_ladder_rep1.rds")
 
 ## add RT labels
 labels = sapply(strsplit(as.character(unlist(hashTable$Cell)), "_RT_"), unlist)
@@ -142,7 +142,7 @@ head(hashTable)
 cellid_order <- as.data.frame(hashTable$Cell)
 colnames(cellid_order) <- "Cell"
 
-UMIs_cell <- read.table("UMIs.per.cell.barcode_1", header=F)
+UMIs_cell <- read.table("UMIs.per.cell.barcode_rep1", header=F)
 UMIs_cell <- UMIs_cell[,2:3]
 colnames(UMIs_cell) <- c("Cell", "Total_RNA")
 
@@ -165,32 +165,24 @@ head(hashTable)
 
 
 ## save
-write.table(hashTable, file="hashTable_1.txt", quote = F, col.names = T, row.names = F)
+write.table(hashTable, file="hashTable_rep1.txt", quote = F, col.names = T, row.names = F)
 
 dim(hashTable)
 hashTable = hashTable %>% filter(Rsq > 0.7 & Total_hash > 100 & Intercept < 0)
 dim(hashTable)
 
-write.table(hashTable, file="hashTable_filtered_1.txt", quote = F, col.names = T, row.names = F)
+write.table(hashTable, file="hashTable_filtered_rep1.txt", quote = F, col.names = T, row.names = F)
 
 hashTable_unique = hashTable %>% 
                     distinct(Cell, .keep_all = T)
 head(hashTable_unique)
 dim(hashTable_unique)
 
-summary(hashTable_unique$Rsq)
-summary(hashTable_unique$Total_hash)
-
-hashTable_unique = read.table("hashTable_filtered_1.txt", header=T) %>%
-        distinct(Cell, .keep_all=T)
-dim(hashTable_unique)
-head(hashTable_unique)
-
-RNA_dup = read.table("dup.rate.per.cell_1")
+RNA_dup = read.table("dup.rate.per.cell_rep1")
 RNA_dup = RNA_dup %>% filter(V1 %in% hashTable_unique$Cell)
 
-label_dup = read.table("hashDupRate-labels.txt_1")
-ladder_dup = read.table("hashDupRate-ladder.txt_1")
+label_dup = read.table("hashDupRate-labels.txt_rep1")
+ladder_dup = read.table("hashDupRate-ladder.txt_rep1")
 
 label_dup = label_dup %>% filter(V2 %in% hashTable_unique$Cell)
 ladder_dup = ladder_dup %>% filter(V2 %in% hashTable_unique$Cell)
@@ -208,7 +200,7 @@ head(hashTable_unique)
 ## hash ladder based size factor calculation
 ## Compute x_intercept and scale total hash and RNA count by their duplication rate
 ## (to indirectly adjust for sequencing depth)
-#3 
+
 x_intercept = -hashTable_unique$Intercept / hashTable_unique$Slope
 
 scale_factors = log(hashTable_unique$Total_hash / x_intercept) * 
@@ -218,5 +210,5 @@ hashTable_unique$Hash_Size_Factor = scale_factors / exp(mean(log(scale_factors))
 
 summary(hashTable_unique$Hash_Size_Factor)
 
-write.table(hashTable_unique, file="hashTable_unique_filtered_1.txt", quote = F, col.names = T, row.names = F)
+write.table(hashTable_unique, file="hashTable_unique_filtered_rep1.txt", quote = F, col.names = T, row.names = F)
 

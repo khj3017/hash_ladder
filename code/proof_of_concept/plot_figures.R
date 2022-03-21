@@ -34,7 +34,9 @@ hashTable = read.table("hashTable_not_filtered.txt", header=T)
 hashTable_unique = read.table("hashTable_unique_filtered.txt", header=T)
 
 
-## figure 1B
+# Figure 1
+
+## figure 1b
 cellids = unique(hashTable$Cell)
 num_hashes = 8
 hashes = levels(hashTable$Hash)
@@ -72,7 +74,7 @@ ggplot(df, aes(log10(Mol), Count, fill = as.factor(Mol))) +
 ggsave("F1_hash_agg.pdf", device = "pdf", width=3, height=3)
 
 
-## figure 1C
+## figure 1c
 bad_cell = "A06_A06_RT_90"
 good_cell = "B02_B02_RT_18"
 
@@ -92,7 +94,7 @@ plotLadderSingleCell(good_cell)
 ggsave("F1_good_cell.pdf", device = "pdf", width=3.5, height=3)
 
 
-## figure 1D
+## figure 1d
 b = hashTable_unique
 pct = 0.25
 
@@ -113,7 +115,7 @@ ggplot(b, aes(y = log10(Total_RNA), x = as.factor(intercept_class))) +
 ggsave("F1_slope_intercept_correlation.pdf", device = "pdf", width=4, height=3)
 
 
-## figure 1E
+## figure 1e
 size_factor_df = rbind(data.frame(sf = hashTable_unique$Size_Factor, type = "Conventional"),
                        data.frame(sf = hashTable_unique$Hash_Size_Factor, type = "Hash ladder"))
 
@@ -127,7 +129,7 @@ ggplot(size_factor_df, aes(x = sf, y = type)) +
 ggsave("F1_sf_distribution.pdf", device = "pdf", width=4, height=3)
 
 
-## figure 1F
+## figure 1f
 cds = readRDS("cds_filtered.rds")
 cds2 = cds
 cds2$Size_Factor = cds2$Hash_Size_Factor
@@ -172,7 +174,7 @@ ggplot(df, aes(x = log10(mean), y = log10(cv), colour = type, alpha = 0.2)) +
 ggsave("F1_cv_plot.png", device = "png", width=4, height=4)
 
 
-## figure 1G
+## figure 1g
 df2 = left_join(cv_sf, cv_hash, by = "id") %>%
          dplyr::rename(cv_sf = cv.x, cv_hash = cv.y)
 
@@ -186,7 +188,8 @@ ggplot(df2, aes(x = log10(cv_sf), y = log10(cv_hash))) +
 ggsave("F1_cv_comp.png", device = "png", width=3, height=3)
 
 
-## figure S1A
+# Supplementary Figure 1
+## Supplementary figure 1a
 options(repr.plot.width=3.5, repr.plot.height=3)
 ggplot(hashTable_unique %>%
         select(Cell, Total_RNA, Total_hash) %>%
@@ -198,7 +201,7 @@ ggplot(hashTable_unique %>%
 ggsave("S_RNA_hash_plot.pdf", width = 4, height = 3)
 
 
-## figure S1B
+## Supplementary figure 1b
 ggplot(hashTable %>% dplyr::count(Cell) %>% dplyr::count(n), 
        aes(x = n, y = nn)) + 
       geom_bar(stat = "identity") +
@@ -208,7 +211,7 @@ ggplot(hashTable %>% dplyr::count(Cell) %>% dplyr::count(n),
 ggsave("S_n_hash_plot.pdf", width = 3.5, height = 3)
 
 
-## figure S1C
+## Supplementary figure 1c
 valid_cells = unique(hashTable$Cell)
 filtered_cells = setdiff(unique(hashTable$Cell), unique(hashTable_unique$Cell))
 mat = readRDS("../../data/proof_of_concept/corr_mat.rds")
@@ -224,7 +227,7 @@ ggplot(data.frame(corrs), aes(corrs)) +
 ggsave("S_hash_count_corr.pdf", device = "pdf", width=4, height=4)
 
 
-## figure S1D
+## Supplementary figure 1d
 hashTable_not_filtered = hashTable %>% distinct(Cell, .keep_all = T)
 hashTable_not_filtered$rsq_class = ifelse(hashTable_not_filtered$Rsq < 0.7, "<0.7", 
                 ifelse(hashTable_not_filtered$Rsq > 0.7 & hashTable_not_filtered$Rsq < 0.9, "0.7-0.9", 
@@ -240,7 +243,7 @@ ggplot(hashTable_not_filtered, aes(y = log10(Total_RNA), x = as.factor(rsq_class
 ggsave(filename = "S_Rsq_RNA_count.pdf", width = 4, height = 3)
 
 
-## figure S1E
+## Supplementary figure 1e
 g = list()
 g[[1]] = ggplot(hashTable_not_filtered, aes(x = log10(Total_hash))) + 
       geom_histogram(bins = 20, colour = "black", fill = "white") + 

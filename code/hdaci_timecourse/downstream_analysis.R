@@ -34,7 +34,9 @@ monocle_theme_opts <- function()
     theme(legend.key=element_blank())
 }
 
-## Load data
+# Downstream analysis of HDACi timecourse data
+
+## Load cds and de analysis data
 setwd("../../data/hdaci_timecourse")
 cds_timecourse = readRDS("cds_timecourse_pseudotime.rds")
 cds_timecourse_hash = readRDS("cds_timecourse_hash_pseudotime.rds")
@@ -389,8 +391,8 @@ gsa_hyper_clusters <- function(gene_test_res, gene_clusters, gsc){
     return(GSA_list)
 }
 
-gmt_dir = "../gmts"
 ## Load Gene Set Collections
+gmt_dir = "../gmts"
 reactomeGSC<-loadGSCSafe(file=file.path(gmt_dir, "Human_Reactome_August_01_2019_symbol.gmt"))
 pantherGSC<-loadGSCSafe(file=file.path(gmt_dir, "Human_Panther_August_01_2019_symbol.gmt"))
 KEGGGSC<-loadGSCSafe(file=file.path(gmt_dir, "Human_KEGG_August_01_2019_symbol.gmt"))
@@ -399,6 +401,7 @@ GOGSC<-loadGSCSafe(file=file.path(gmt_dir, "Human_GO_bp_no_GO_iea_symbol.gmt"))
 TFGSC<-loadGSCSafe(file=file.path(gmt_dir, "Human_MSigdb_August_01_2019_symbol.gmt"))
 HALLMARKS<-loadGSCSafe(file=file.path(gmt_dir, "h.all.v6.2.symbols.gmt"))
 
+## Load clustered DE genes
 num_cells = 100
 qvalue = "1e-10"
 cluster_n = 4
@@ -415,6 +418,7 @@ gene_univ = as.data.frame(rowData(cds_timecourse_hash)) %>%
                 filter(num_cells_expressed > 50)
 
 
+## Perform GSEA analysis
 GSC = HALLMARKS
 
 gsa_list_sf = suppressWarnings({gsa_hyper_clusters(gene_univ, sf_cluster, GSC)})
