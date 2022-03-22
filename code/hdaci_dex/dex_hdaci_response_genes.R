@@ -188,8 +188,8 @@ for (normal in c("Conventional", "Hash")) {
 final_df = final_df %>% select(id:hdaci_dex_estimate, dex_estimate, q_value)
 
 ## DE analysis of HDACi only (no DEX treatment)
-coeffs_table_hdaci <- readRDS("de_analysis/hdaci_only/coeff_table_sf_hdaci_comp_time_only.rds")
-degs_compared = readRDS("de_analysis/hdaci_only/degs_sf_LRT_hdaci_comp_time_only.rds")
+coeffs_table_hdaci <- readRDS("de_analysis/hdaci_only/coeff_table_sf_hdaci_comp_time.rds")
+degs_compared = readRDS("de_analysis/hdaci_only/degs_sf_LRT_hdaci_comp_time.rds")
 
 qvalue = 5e-2
 num_cells = 20
